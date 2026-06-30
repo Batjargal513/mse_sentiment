@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSE Sentiment Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface2: #f8f9fb;
+  --surface3: #f0f1f4;
+  --border: #e8eaee;
+  --border2: #d8dbe3;
+  --text: #111827;
+  --text2: #4b5563;
+  --text3: #9ca3af;
+  --bull: #16a34a;
+  --bull-dim: rgba(22,163,74,0.08);
+  --bull-border: rgba(22,163,74,0.2);
+  --bear: #dc2626;
+  --bear-dim: rgba(220,38,38,0.08);
+  --bear-border: rgba(220,38,38,0.2);
+  --neu: #6b7280;
+  --neu-dim: rgba(107,114,128,0.08);
+  --gold: #d97706;
+  --gold-dim: rgba(217,119,6,0.08);
+  --gold-border: rgba(217,119,6,0.25);
+  --blue: #2563eb;
+  --blue-dim: rgba(37,99,235,0.08);
+  --purple: #7c3aed;
+  --purple-dim: rgba(124,58,237,0.08);
+  --accent: #2563eb;
+  --accent-dim: rgba(37,99,235,0.1);
+  --r: 10px;
+  --r-sm: 6px;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:13px; min-height:100vh; overflow-x:hidden; }
+
+/* ─── SCROLLBARS ─── */
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+/* ─── HEADER ─── */
+header {
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:0 20px;
+  height:54px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky;
+  top:0;
+  z-index:200;
+  backdrop-filter:blur(12px);
+}
+.logo { display:flex; align-items:center; gap:10px; }
+.logo-mark {
+  width:32px; height:32px; border-radius:7px;
+  background:linear-gradient(135deg,var(--accent),#7c3aed);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'DM Serif Display',serif; font-size:14px; color:#fff;
+  box-shadow:0 0 16px rgba(79,110,247,0.35);
+}
+.logo-text { font-family:'DM Serif Display',serif; font-size:16px; letter-spacing:0.2px; }
+.logo-sub { font-size:9px; color:var(--text3); letter-spacing:2px; text-transform:uppercase; margin-top:1px; }
+
+.header-right { display:flex; align-items:center; gap:8px; }
+.api-input {
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  border-radius:var(--r-sm);
+  padding:5px 11px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  color:var(--text);
+  width:190px;
+  outline:none;
+  transition:border-color .15s;
+}
+.api-input:focus { border-color:var(--accent); }
+.btn-connect {
+  background:var(--accent);
+  color:#fff;
+  border:none;
+  border-radius:var(--r-sm);
+  padding:6px 14px;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  font-family:'IBM Plex Sans',sans-serif;
+  transition:all .15s;
+  letter-spacing:0.3px;
+}
+.btn-connect:hover { background:#3d5be0; box-shadow:0 0 12px rgba(79,110,247,0.4); }
+.status-pill {
+  display:flex; align-items:center; gap:5px;
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  border-radius:20px;
+  padding:4px 10px;
+  font-size:10px;
+  font-family:'IBM Plex Mono',monospace;
+  color:var(--text3);
+}
+.dot { width:6px; height:6px; border-radius:50%; background:var(--border2); }
+.dot.live { background:var(--bull); box-shadow:0 0 6px var(--bull); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.6} }
+.clock { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text3); }
+
+/* ─── MARKET STRIP ─── */
+.market-strip {
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  display:flex;
+  overflow-x:auto;
+}
+.mstat {
+  flex:1; min-width:140px;
+  padding:10px 18px;
+  border-right:1px solid var(--border);
+  position:relative;
+}
+.mstat:last-child { border-right:none; }
+.ms-label {
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:2px;
+  color:var(--text3);
+  margin-bottom:4px;
+  font-weight:500;
+}
+.ms-val {
+  font-family:'IBM Plex Mono',monospace;
+  font-size:18px;
+  font-weight:600;
+  line-height:1;
+}
+.ms-sub { font-size:9px; color:var(--text3); margin-top:3px; }
+.bull { color:var(--bull) !important; }
+.bear { color:var(--bear) !important; }
+.neu { color:var(--neu) !important; }
+
+/* ─── LAYOUT ─── */
+.layout { display:flex; height:calc(100vh - 54px - 48px); }
+
+/* ─── SIDEBAR ─── */
+.sidebar {
+  width:224px; min-width:224px;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+}
+.sidebar-head {
+  padding:11px 14px 9px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.sidebar-label { font-size:8px; text-transform:uppercase; letter-spacing:2px; color:var(--text3); font-weight:600; }
+.co-count { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text3); }
+.search-wrap { padding:8px 10px; border-bottom:1px solid var(--border); }
+.search {
+  width:100%;
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  border-radius:var(--r-sm);
+  padding:6px 10px;
+  font-size:11px;
+  color:var(--text);
+  outline:none;
+  font-family:'IBM Plex Sans',sans-serif;
+  transition:border-color .15s;
+}
+.search:focus { border-color:var(--accent); }
+.search::placeholder { color:var(--text3); }
+
+.ticker-list { flex:1; overflow-y:auto; }
+.ticker-item {
+  display:flex; align-items:center; gap:9px;
+  padding:8px 12px;
+  cursor:pointer;
+  border-bottom:1px solid var(--border);
+  transition:background .1s;
+  border-left:2px solid transparent;
+}
+.ticker-item:hover { background:var(--surface2); }
+.ticker-item.active { background:var(--surface2); border-left-color:var(--accent); }
+.ti-swatch { width:3px; height:28px; border-radius:2px; flex-shrink:0; }
+.ti-info { flex:1; min-width:0; }
+.ti-ticker { font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; }
+.ti-name { font-size:10px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.ti-score { font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; flex-shrink:0; }
+
+/* ─── MAIN ─── */
+.main { flex:1; overflow-y:auto; background:var(--bg); }
+
+/* ─── TABS ─── */
+.tabs {
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:0 18px;
+  display:flex;
+  position:sticky; top:0; z-index:10;
+  gap:2px;
+}
+.tab {
+  padding:13px 16px;
+  font-size:10px;
+  font-weight:600;
+  color:var(--text3);
+  cursor:pointer;
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  border-bottom:2px solid transparent;
+  transition:all .15s;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.tab:hover { color:var(--text2); }
+.tab.active { color:var(--text); border-bottom-color:var(--accent); }
+.tab-icon { font-size:12px; }
+
+/* ─── PANELS ─── */
+.panel { display:none; padding:18px; }
+.panel.active { display:block; }
+
+/* ─── CARDS ─── */
+.card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:16px 18px;
+  margin-bottom:12px;
+}
+.card-head {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:14px;
+}
+.card-label {
+  font-size:8px; text-transform:uppercase;
+  letter-spacing:2px; color:var(--text3); font-weight:600;
+}
+
+/* ─── SCORE GRID ─── */
+.score-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:12px; }
+.scard {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px 16px;
+}
+.scard-label { font-size:8px; text-transform:uppercase; letter-spacing:2px; color:var(--text3); font-weight:600; margin-bottom:7px; }
+.scard-val { font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; line-height:1; }
+.scard-sub { font-size:10px; color:var(--text3); margin-top:6px; }
+
+/* ─── CHANNEL SPLIT ─── */
+.ch-split { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.ch-card {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px 16px;
+}
+.ch-head { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+.ch-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.ch-title { font-size:8px; text-transform:uppercase; letter-spacing:2px; font-weight:600; }
+.ch-score { font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; }
+.ch-sub { font-size:10px; color:var(--text3); margin-top:3px; }
+.ch-bar { height:3px; background:var(--border2); border-radius:2px; margin-top:10px; overflow:hidden; }
+.ch-fill { height:100%; border-radius:2px; transition:width .6s; }
+
+/* ─── DIVERGENCE ROW ─── */
+.div-row {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px;
+  border-radius:var(--r-sm);
+  margin-bottom:12px;
+  font-size:11px;
+  border:1px solid;
+}
+.div-high { background:var(--gold-dim); border-color:var(--gold-border); }
+.div-normal { background:var(--surface2); border-color:var(--border); }
+.div-label { color:var(--text2); flex:1; }
+.div-val { font-family:'IBM Plex Mono',monospace; font-weight:600; }
+
+/* ─── BREAKDOWN BAR ─── */
+.bkdn-bar { height:6px; border-radius:3px; overflow:hidden; background:var(--border2); display:flex; margin-top:8px; }
+.bkdn-seg { height:100%; transition:width .5s; }
+
+/* ─── CHART ─── */
+canvas { width:100%!important; display:block; }
+.day-btns { display:flex; gap:3px; }
+.daybtn {
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  color:var(--text3);
+  font-size:10px;
+  padding:4px 8px;
+  border-radius:var(--r-sm);
+  cursor:pointer;
+  font-family:'IBM Plex Mono',monospace;
+  transition:all .15s;
+}
+.daybtn:hover { border-color:var(--border2); color:var(--text2); }
+.daybtn.active { background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
+.ch-toggle { display:flex; gap:4px; }
+.chtgl {
+  display:flex; align-items:center; gap:4px;
+  font-size:9px; padding:3px 8px;
+  border:1px solid var(--border2);
+  border-radius:20px;
+  cursor:pointer;
+  transition:all .15s;
+  color:var(--text3);
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+  font-weight:600;
+}
+.chtgl.on-news { border-color:var(--blue); color:var(--blue); background:var(--blue-dim); }
+.chtgl.on-social { border-color:var(--purple); color:var(--purple); background:var(--purple-dim); }
+.chtgl-dot { width:5px; height:5px; border-radius:50%; }
+
+/* ─── ARTICLES ─── */
+.art-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:12px 15px;
+  margin-bottom:8px;
+  display:flex; gap:12px; align-items:flex-start;
+  animation:up .2s ease both;
+  transition:border-color .15s;
+}
+.art-card:hover { border-color:var(--border2); }
+@keyframes up { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+.art-body { flex:1; min-width:0; }
+.art-src {
+  display:inline-block;
+  font-size:8px; letter-spacing:1.5px; text-transform:uppercase;
+  padding:2px 7px; border-radius:4px; margin-bottom:5px; font-weight:600;
+  border:1px solid;
+}
+.src-news { background:var(--blue-dim); color:var(--blue); border-color:rgba(59,130,246,0.3); }
+.src-social { background:var(--purple-dim); color:var(--purple); border-color:rgba(168,85,247,0.3); }
+.art-title { font-size:12px; line-height:1.55; margin-bottom:3px; color:var(--text); }
+.art-meta { font-size:10px; color:var(--text3); }
+.art-summary { font-size:11px; color:var(--text2); margin-top:5px; font-style:italic; line-height:1.5; }
+.score-badge {
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px; font-weight:600;
+  padding:4px 9px; border-radius:var(--r-sm);
+  white-space:nowrap; flex-shrink:0; border:1px solid;
+}
+.b-bull { background:var(--bull-dim); color:var(--bull); border-color:var(--bull-border); }
+.b-bear { background:var(--bear-dim); color:var(--bear); border-color:var(--bear-border); }
+.b-neu { background:var(--neu-dim); color:var(--neu); border-color:rgba(107,114,128,0.25); }
+
+/* ─── ALERTS ─── */
+.alert-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:12px 15px;
+  margin-bottom:8px;
+  display:flex; gap:12px; align-items:flex-start;
+  animation:up .2s ease both;
+}
+.al-ticker { font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; flex-shrink:0; }
+.al-body { flex:1; min-width:0; }
+.al-summary { font-size:12px; line-height:1.45; margin-bottom:4px; }
+.al-meta { font-size:10px; color:var(--text3); display:flex; gap:8px; flex-wrap:wrap; }
+
+/* ─── PROVIDERS TAB ─── */
+.provider-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+.provider-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:16px 18px;
+  transition:border-color .2s, box-shadow .2s;
+  cursor:default;
+}
+.provider-card:hover { border-color:var(--border2); box-shadow:0 0 20px rgba(0,0,0,0.3); }
+.provider-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.provider-icon {
+  width:36px; height:36px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; flex-shrink:0; border:1px solid;
+}
+.provider-name { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; }
+.provider-type { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; margin-top:2px; }
+.provider-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.pstat { background:var(--surface2); border-radius:var(--r-sm); padding:8px 10px; border:1px solid var(--border); }
+.pstat-label { font-size:8px; text-transform:uppercase; letter-spacing:1.5px; color:var(--text3); font-weight:600; margin-bottom:3px; }
+.pstat-val { font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; }
+.provider-bar-wrap { margin-bottom:4px; }
+.provider-bar-label { display:flex; justify-content:space-between; margin-bottom:4px; font-size:9px; color:var(--text3); }
+.provider-bar { height:4px; background:var(--border2); border-radius:2px; overflow:hidden; }
+.provider-bar-fill { height:100%; border-radius:2px; transition:width .6s; }
+.provider-avg { display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
+.provider-avg-label { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:var(--text3); font-weight:600; }
+.provider-avg-val { font-family:'IBM Plex Mono',monospace; font-size:16px; font-weight:600; }
+
+.provider-filter-bar { display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.pf-label { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:var(--text3); font-weight:600; }
+.pf-btn {
+  padding:4px 10px; border-radius:20px;
+  font-size:9px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase;
+  border:1px solid var(--border2);
+  cursor:pointer; color:var(--text3);
+  transition:all .15s; background:var(--surface2);
+}
+.pf-btn.active-news { border-color:var(--blue); color:var(--blue); background:var(--blue-dim); }
+.pf-btn.active-social { border-color:var(--purple); color:var(--purple); background:var(--purple-dim); }
+.pf-btn.active-all { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+
+/* Type: news/social tags in provider card */
+.tag-news { background:var(--blue-dim); color:var(--blue); }
+.tag-social { background:var(--purple-dim); color:var(--purple); }
+.icon-news { background:var(--blue-dim); border-color:rgba(59,130,246,0.3); }
+.icon-social { background:var(--purple-dim); border-color:rgba(168,85,247,0.3); }
+
+/* ─── UTILITY ─── */
+.empty { padding:48px 20px; text-align:center; color:var(--text3); }
+.empty-icon { font-size:32px; margin-bottom:10px; }
+.empty p { line-height:1.8; }
+.loading { display:flex; align-items:center; gap:8px; color:var(--text2); padding:24px 20px; }
+.spinner { width:14px; height:14px; border:2px solid var(--border2); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg) } }
+
+/* ─── OVERLAY ─── */
+.overlay {
+  position:fixed; inset:0;
+  background:rgba(17,24,39,0.4);
+  display:flex; align-items:center; justify-content:center;
+  z-index:999; backdrop-filter:blur(8px);
+}
+.overlay-box {
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:14px;
+  padding:36px;
+  max-width:400px; width:90%;
+  box-shadow:0 24px 64px rgba(0,0,0,0.5);
+}
+.ov-brand { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+.ov-brandmark {
+  width:40px; height:40px; border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),#7c3aed);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'DM Serif Display',serif; font-size:18px; color:#fff;
+  box-shadow:0 0 20px rgba(79,110,247,0.4);
+}
+.ov-title { font-family:'DM Serif Display',serif; font-size:22px; }
+.ov-sub { font-size:12px; color:var(--text2); line-height:1.7; margin-bottom:22px; }
+.ov-input {
+  width:100%;
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  border-radius:var(--r-sm);
+  padding:10px 14px;
+  color:var(--text);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12px;
+  outline:none; margin-bottom:10px;
+  transition:border-color .15s;
+}
+.ov-input:focus { border-color:var(--accent); }
+.ov-btns { display:flex; gap:8px; }
+.ov-btn {
+  flex:1; padding:10px; border-radius:var(--r-sm);
+  font-size:12px; font-weight:600; cursor:pointer;
+  border:none; font-family:'IBM Plex Sans',sans-serif;
+  transition:all .15s; letter-spacing:0.3px;
+}
+.ov-btn.primary { background:var(--accent); color:#fff; }
+.ov-btn.primary:hover { background:#3d5be0; box-shadow:0 0 16px rgba(79,110,247,0.4); }
+.ov-btn.ghost { background:var(--surface2); color:var(--text2); border:1px solid var(--border2); }
+.ov-btn.ghost:hover { border-color:var(--border2); color:var(--text); }
+
+/* ─── SECTION LABEL ─── */
+.section-meta { font-size:9px; color:var(--text3); font-weight:600; letter-spacing:1.5px; text-transform:uppercase; padding:0 0 10px; }
+
+/* ─── SOURCES PAGE ─── */
+.sources-toolbar {
+  display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;
+}
+.src-search {
+  flex:1; min-width:160px;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:var(--r-sm);
+  padding:6px 11px;
+  font-size:12px; color:var(--text);
+  outline:none; font-family:'IBM Plex Sans',sans-serif;
+  transition:border-color .15s;
+}
+.src-search:focus { border-color:var(--accent); }
+.src-search::placeholder { color:var(--text3); }
+.src-chip {
+  padding:4px 11px; border-radius:20px;
+  font-size:9px; font-weight:600; letter-spacing:1px; text-transform:uppercase;
+  border:1px solid var(--border2); cursor:pointer; color:var(--text3);
+  transition:all .15s; background:var(--surface); white-space:nowrap;
+}
+.src-chip.active { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+.src-chip.chip-news.active { border-color:var(--blue); color:var(--blue); background:var(--blue-dim); }
+.src-chip.chip-social.active { border-color:var(--purple); color:var(--purple); background:var(--purple-dim); }
+.sources-count { font-size:10px; color:var(--text3); font-family:'IBM Plex Mono',monospace; margin-left:auto; white-space:nowrap; }
+
+.sources-table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; margin-bottom:12px; }
+.src-table { width:100%; border-collapse:collapse; }
+.src-table th {
+  text-align:left; padding:10px 14px;
+  font-size:8px; text-transform:uppercase; letter-spacing:2px; font-weight:600;
+  color:var(--text3); background:var(--surface2);
+  border-bottom:1px solid var(--border);
+  white-space:nowrap; cursor:pointer; user-select:none;
+}
+.src-table th:hover { color:var(--text2); }
+.src-table th .sort-icon { margin-left:4px; opacity:0.4; }
+.src-table th.sorted .sort-icon { opacity:1; color:var(--accent); }
+.src-table td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.src-table tr:last-child td { border-bottom:none; }
+.src-table tr:hover td { background:var(--surface2); cursor:pointer; }
+.src-name-cell { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; display:flex; align-items:center; gap:8px; }
+.src-type-badge {
+  font-size:8px; padding:2px 7px; border-radius:4px;
+  font-weight:600; letter-spacing:1px; text-transform:uppercase; border:1px solid; flex-shrink:0;
+}
+.src-mini-bar { height:5px; background:var(--border); border-radius:3px; overflow:hidden; display:flex; min-width:100px; }
+.src-mini-seg { height:100%; }
+.src-score { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; }
+.src-count { font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text2); }
+
+/* article drawer */
+.src-article-drawer { display:none; }
+.src-article-drawer.open { display:block; }
+.src-drawer-inner { padding:14px 18px; border-top:1px solid var(--border); background:var(--surface2); }
+.drawer-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.drawer-title { font-size:9px; text-transform:uppercase; letter-spacing:2px; color:var(--text3); font-weight:600; }
+.drawer-close { font-size:14px; color:var(--text3); cursor:pointer; padding:2px 6px; border-radius:4px; transition:all .15s; }
+.drawer-close:hover { color:var(--text); background:var(--border); }
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:700px) {
+  .sidebar { width:100%; min-width:unset; height:190px; border-right:none; border-bottom:1px solid var(--border); }
+  .layout { flex-direction:column; height:auto; }
+  .score-grid, .ch-split { grid-template-columns:1fr 1fr; }
+  .market-strip { flex-wrap:wrap; }
+  .mstat { min-width:50%; }
+  .api-input { width:130px; }
+  .provider-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">М</div>
+    <div>
+      <div class="logo-text">MSE Sentiment</div>
+      <div class="logo-sub">Mongolia Stock Exchange · Intelligence</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <input class="api-input" id="apiInput" placeholder="http://localhost:8000" value="http://localhost:8000">
+    <button class="btn-connect" onclick="connectApi()">Connect</button>
+    <div class="status-pill"><div class="dot" id="statusDot"></div><span id="apiStatus">OFFLINE</span></div>
+    <div class="clock" id="clock"></div>
+  </div>
+</header>
+
+<div class="market-strip">
+  <div class="mstat"><div class="ms-label">Market Score</div><div class="ms-val" id="mktScore">—</div><div class="ms-sub" id="mktMeta">—</div></div>
+  <div class="mstat"><div class="ms-label">Sentiment</div><div class="ms-val" id="mktLabel">—</div><div class="ms-sub" id="mktDate">—</div></div>
+  <div class="mstat"><div class="ms-label">Tracked</div><div class="ms-val" id="mktCount">—</div><div class="ms-sub" id="mktBreak">—</div></div>
+  <div class="mstat"><div class="ms-label">Top Bullish</div><div class="ms-val bull" id="mktBull" style="font-size:12px;margin-top:5px">—</div></div>
+  <div class="mstat"><div class="ms-label">Top Bearish</div><div class="ms-val bear" id="mktBear" style="font-size:12px;margin-top:5px">—</div></div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <span class="sidebar-label">Companies</span>
+      <span class="co-count" id="coCount">—</span>
+    </div>
+    <div class="search-wrap">
+      <input class="search" id="searchInput" placeholder="Search ticker or name…" oninput="filterTickers()">
+    </div>
+    <div class="ticker-list" id="tickerList">
+      <div class="loading"><div class="spinner"></div>Loading…</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('overview')"><span class="tab-icon">◈</span> Overview</div>
+      <div class="tab" onclick="switchTab('articles')"><span class="tab-icon">⬡</span> Articles</div>
+      <div class="tab" onclick="switchTab('providers')"><span class="tab-icon">◉</span> By Provider</div>
+      <div class="tab" onclick="switchTab('sources')"><span class="tab-icon">◫</span> Sources</div>
+      <div class="tab" onclick="switchTab('alerts')"><span class="tab-icon">◬</span> Alerts</div>
+    </div>
+    <div class="panel active" id="panel-overview">
+      <div class="empty"><div class="empty-icon">◈</div><p>Select a company to view sentiment</p></div>
+    </div>
+    <div class="panel" id="panel-articles">
+      <div class="empty"><div class="empty-icon">⬡</div><p>Select a company to load articles</p></div>
+    </div>
+    <div class="panel" id="panel-providers">
+      <div class="empty"><div class="empty-icon">◉</div><p>Select a company to view by provider</p></div>
+    </div>
+    <div class="panel" id="panel-sources">
+      <div class="empty"><div class="empty-icon">◫</div><p>Loading sources…</p></div>
+    </div>
+    <div class="panel" id="panel-alerts">
+      <div class="empty"><div class="empty-icon">◬</div><p>Loading alerts…</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let API='http://localhost:8000', allCo=[], companies=[], selected=null, activeTab='overview';
+let histDays=30, showNews=true, showSocial=true;
+let providerFilter='all', _providerArtsCache=[];
+let sourcesData=[], sourcesFilter='all', sourcesSearch='', sourcesSort={col:'total', dir:-1};
+
+function el(id){return document.getElementById(id);}
+function tick(){el('clock').textContent=new Date().toLocaleTimeString('mn-MN',{hour12:false,timeZone:'Asia/Ulaanbaatar'})+' ULN';}
+tick(); setInterval(tick,1000);
+async function get(p){const r=await fetch(API+p);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
+
+async function connectApi(){
+  API=el('apiInput').value.trim()||API;
+  el('statusDot').className='dot';el('apiStatus').textContent='...';
+  try{
+    await get('/');
+    el('statusDot').className='dot live';el('apiStatus').textContent='LIVE';
+    loadAll();
+  }catch(e){el('statusDot').className='dot';el('apiStatus').textContent='ERROR';}
+}
+
+async function loadAll(){loadMarket();loadCompanies();loadAlerts();loadSources();}
+
+async function loadMarket(){
+  try{
+    const d=await get('/market/overview');
+    const s=d.market_score||0,cls=s>0.1?'bull':s<-0.1?'bear':'neu';
+    el('mktScore').textContent=(s>=0?'+':'')+s.toFixed(3);el('mktScore').className='ms-val '+cls;
+    el('mktLabel').textContent=(d.market_emoji||'')+' '+(d.market_label||'').toUpperCase();el('mktLabel').className='ms-val '+cls;
+    el('mktDate').textContent=d.date||'';el('mktMeta').textContent='MSE · '+new Date().toLocaleTimeString('en',{hour12:false});
+    el('mktCount').textContent=d.companies_tracked||'—';
+    const b=d.breakdown||{};el('mktBreak').textContent=`▲${b.positive||0} ▼${b.negative||0} =${b.neutral||0}`;
+    const top=d.top_movers||{};
+    el('mktBull').textContent=(top.bullish||[]).slice(0,3).join(' · ')||'—';
+    el('mktBear').textContent=(top.bearish||[]).slice(0,3).join(' · ')||'—';
+  }catch(e){}
+}
+
+async function loadCompanies(){
+  try{
+    const d=await get('/companies');
+    allCo=d.companies||[];companies=[...allCo];el('coCount').textContent=allCo.length;renderList();
+  }catch(e){el('tickerList').innerHTML='<div class="empty"><p>Failed to load</p></div>';}
+}
+
+function filterTickers(){
+  const q=el('searchInput').value.toLowerCase();
+  companies=allCo.filter(c=>(c.ticker||'').toLowerCase().includes(q)||(c.name_en||'').toLowerCase().includes(q)||(c.name_mn||'').toLowerCase().includes(q));
+  renderList();
+}
+
+function renderList(){
+  const c=el('tickerList');
+  if(!companies.length){c.innerHTML='<div class="empty"><p>No results</p></div>';return;}
+  c.innerHTML=companies.map(co=>{
+    const s=co.latest_score||0,col=s>0.1?'var(--bull)':s<-0.1?'var(--bear)':'var(--neu)';
+    return `<div class="ticker-item${selected===co.ticker?' active':''}" onclick="selectTicker('${co.ticker}')">
+      <div class="ti-swatch" style="background:${col}"></div>
+      <div class="ti-info"><div class="ti-ticker">${co.ticker}</div><div class="ti-name">${co.name_en||co.name_mn||''}</div></div>
+      <div class="ti-score" style="color:${col}">${s!==0?(s>=0?'+':'')+s.toFixed(2):'—'}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectTicker(ticker){
+  selected=ticker;
+  _providerArtsCache=[];
+  document.querySelectorAll('.ticker-item').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.ticker-item').forEach(e=>{if(e.querySelector('.ti-ticker')?.textContent===ticker)e.classList.add('active');});
+  switchTab('overview');
+}
+
+// ── OVERVIEW ──────────────────────────────────────────────────
+async function loadOverview(ticker){
+  const pane=el('panel-overview');
+  pane.innerHTML='<div class="loading"><div class="spinner"></div>Loading…</div>';
+  try{
+    const [sent,histData]=await Promise.all([get('/sentiment/'+ticker),get('/sentiment/'+ticker+'/history?days='+histDays)]);
+    const s=sent.score||0,col=s>0.1?'var(--bull)':s<-0.1?'var(--bear)':'var(--neu)';
+    const tc=sent.trend==='improving'?'var(--bull)':sent.trend==='declining'?'var(--bear)':'var(--neu)';
+    const ta=sent.trend==='improving'?'↑':sent.trend==='declining'?'↓':'→';
+    const b=sent.breakdown||{};
+    const tot=(b.positive||0)+(b.negative||0)+(b.neutral||0)||1;
+    const pw=(b.positive||0)/tot*100,nw=(b.negative||0)/tot*100,ew=(b.neutral||0)/tot*100;
+    const hist=histData.history||[];
+    const nRows=hist.filter(r=>r.channel==='news'||!r.channel);
+    const sRows=hist.filter(r=>r.channel==='social');
+    const nAvg=nRows.length?nRows.reduce((a,r)=>a+(r.avg_score||0),0)/nRows.length:null;
+    const sAvg=sRows.length?sRows.reduce((a,r)=>a+(r.avg_score||0),0)/sRows.length:null;
+    const div=nAvg!==null&&sAvg!==null?sAvg-nAvg:null;
+    const hiDiv=div!==null&&Math.abs(div)>0.3;
+
+    pane.innerHTML=`
+      <div class="score-grid">
+        <div class="scard">
+          <div class="scard-label">Sentiment Score</div>
+          <div class="scard-val" style="color:${col}">${s>=0?'+':''}${s.toFixed(3)}</div>
+          <div class="scard-sub">${sent.emoji||''} ${(sent.label||'').toUpperCase()}</div>
+        </div>
+        <div class="scard">
+          <div class="scard-label">Trend</div>
+          <div class="scard-val" style="color:${tc}">${ta} ${(sent.trend||'STABLE').toUpperCase()}</div>
+          <div class="scard-sub">vs prior period</div>
+        </div>
+        <div class="scard">
+          <div class="scard-label">Articles (30d)</div>
+          <div class="scard-val">${sent.article_count??'—'}</div>
+          <div class="scard-sub">scored signals</div>
+        </div>
+      </div>
+      ${div!==null?`<div class="div-row ${hiDiv?'div-high':'div-normal'}">
+        <span>${hiDiv?'⚠️':'ℹ️'}</span>
+        <span class="div-label">News vs Social divergence</span>
+        <span class="div-val" style="color:${hiDiv?'var(--gold)':'var(--text2)'}">${div>=0?'+':''}${div.toFixed(3)}</span>
+        ${hiDiv?'<span style="font-size:9px;color:var(--gold);font-weight:700;letter-spacing:1px">HIGH</span>':''}
+      </div>`:''}
+      <div class="ch-split">
+        <div class="ch-card">
+          <div class="ch-head"><span class="ch-dot" style="background:var(--blue)"></span><span class="ch-title" style="color:var(--blue)">News</span></div>
+          ${nAvg!==null?`<div class="ch-score" style="color:${nAvg>0.1?'var(--bull)':nAvg<-0.1?'var(--bear)':'var(--neu)'}">${nAvg>=0?'+':''}${nAvg.toFixed(3)}</div>
+          <div class="ch-sub">${nRows.reduce((a,r)=>a+(r.article_count||0),0)} articles · ${nRows.length} days</div>
+          <div class="ch-bar"><div class="ch-fill" style="width:${Math.min(100,Math.abs(nAvg)*100)}%;background:${nAvg>0?'var(--bull)':'var(--bear)'}"></div></div>`
+          :'<div class="ch-sub">No news data</div>'}
+        </div>
+        <div class="ch-card">
+          <div class="ch-head"><span class="ch-dot" style="background:var(--purple)"></span><span class="ch-title" style="color:var(--purple)">Social</span></div>
+          ${sAvg!==null?`<div class="ch-score" style="color:${sAvg>0.1?'var(--bull)':sAvg<-0.1?'var(--bear)':'var(--neu)'}">${sAvg>=0?'+':''}${sAvg.toFixed(3)}</div>
+          <div class="ch-sub">${sRows.reduce((a,r)=>a+(r.article_count||0),0)} posts · ${sRows.length} days</div>
+          <div class="ch-bar"><div class="ch-fill" style="width:${Math.min(100,Math.abs(sAvg)*100)}%;background:${sAvg>0?'var(--bull)':'var(--bear)'}"></div></div>`
+          :'<div class="ch-sub">No social data</div>'}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-label">Sentiment Breakdown</div>
+          <div style="font-size:10px;display:flex;gap:8px">
+            <span style="color:var(--bull);font-weight:600">▲ ${b.positive||0}</span>
+            <span style="color:var(--neu)">= ${b.neutral||0}</span>
+            <span style="color:var(--bear);font-weight:600">▼ ${b.negative||0}</span>
+          </div>
+        </div>
+        <div class="bkdn-bar">
+          <div class="bkdn-seg" style="width:${pw}%;background:var(--bull)"></div>
+          <div class="bkdn-seg" style="width:${ew}%;background:var(--border2)"></div>
+          <div class="bkdn-seg" style="width:${nw}%;background:var(--bear)"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-label">Sentiment History</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div class="ch-toggle">
+              <div class="chtgl ${showNews?'on-news':''}" onclick="toggleCh('news')"><span class="chtgl-dot" style="background:var(--blue)"></span>News</div>
+              <div class="chtgl ${showSocial?'on-social':''}" onclick="toggleCh('social')"><span class="chtgl-dot" style="background:var(--purple)"></span>Social</div>
+            </div>
+            <div class="day-btns">${[7,14,30,60].map(d=>`<button class="daybtn${d===histDays?' active':''}" onclick="changeDays(${d})">${d}d</button>`).join('')}</div>
+          </div>
+        </div>
+        <canvas id="histChart"></canvas>
+      </div>`;
+    setTimeout(()=>drawChart(hist),30);
+  }catch(e){pane.innerHTML=`<div class="empty"><div class="empty-icon">⚠</div><p>No data for ${ticker}<br><small style="color:var(--text3)">${e.message}</small></p></div>`;}
+}
+
+function toggleCh(ch){if(ch==='news')showNews=!showNews;else showSocial=!showSocial;if(selected)loadOverview(selected);}
+async function changeDays(d){histDays=d;if(selected)await loadOverview(selected);}
+
+function drawChart(hist){
+  const canvas=el('histChart');if(!canvas)return;
+  const W=canvas.offsetWidth||600;
+  canvas.width=W*devicePixelRatio;canvas.height=180*devicePixelRatio;canvas.style.height='180px';
+  const ctx=canvas.getContext('2d');ctx.scale(devicePixelRatio,devicePixelRatio);
+  const w=W,h=180,pad={t:10,r:10,b:24,l:44},cw=w-pad.l-pad.r,ch=h-pad.t-pad.b;
+  const dates=[...new Set(hist.map(r=>r.date))].sort();
+  if(!dates.length)return;
+  const nMap={},sMap={};
+  hist.forEach(r=>{if(r.channel==='news'||!r.channel)nMap[r.date]=r.avg_score;if(r.channel==='social')sMap[r.date]=r.avg_score;});
+  const nS=dates.map(d=>nMap[d]??null),sS=dates.map(d=>sMap[d]??null);
+  const all=[...nS,...sS].filter(s=>s!==null);if(!all.length)return;
+  const mn=Math.min(-0.3,...all),mx=Math.max(0.3,...all),rng=mx-mn||1;
+  const xst=cw/(dates.length-1||1);
+  [-0.5,-0.25,0,0.25,0.5].forEach(v=>{
+    const y=pad.t+ch*(1-(v-mn)/rng);
+    ctx.strokeStyle='#e8eaee';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
+    ctx.fillStyle='#9ca3af';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='right';
+    ctx.fillText((v>=0?'+':'')+v.toFixed(2),pad.l-4,y+3);
+  });
+  const zy=pad.t+ch*(1-(0-mn)/rng);
+  ctx.strokeStyle='#d8dbe3';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+cw,zy);ctx.stroke();
+  function line(scores,color,rgb){
+    const pts=scores.map((s,i)=>s!==null?{x:pad.l+i*xst,y:pad.t+ch*(1-(s-mn)/rng)}:null);
+    const valid=pts.filter(Boolean);if(valid.length<2)return;
+    const g=ctx.createLinearGradient(0,pad.t,0,pad.t+ch);
+    g.addColorStop(0,`rgba(${rgb},0.12)`);g.addColorStop(1,`rgba(${rgb},0)`);
+    ctx.beginPath();let st=false;
+    pts.forEach(p=>{if(!p)return;if(!st){ctx.moveTo(p.x,p.y);st=true;}else ctx.lineTo(p.x,p.y);});
+    ctx.lineTo(valid[valid.length-1].x,zy);ctx.lineTo(valid[0].x,zy);ctx.closePath();
+    ctx.fillStyle=g;ctx.fill();
+    ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';st=false;
+    pts.forEach(p=>{if(!p){st=false;return;}if(!st){ctx.moveTo(p.x,p.y);st=true;}else ctx.lineTo(p.x,p.y);});
+    ctx.stroke();
+    [valid[0],valid[valid.length-1]].forEach(p=>{
+      ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);
+      ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#ffffff';ctx.lineWidth=1.5;ctx.stroke();
+    });
+  }
+  if(showNews)line(nS,'#2563eb','37,99,235');
+  if(showSocial)line(sS,'#7c3aed','124,58,237');
+  ctx.fillStyle='#9ca3af';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='center';
+  const ls=Math.max(1,Math.floor(dates.length/6));
+  dates.forEach((d,i)=>{if(i%ls===0||i===dates.length-1)ctx.fillText(d.slice(5),pad.l+i*xst,h-4);});
+}
+
+// ── ARTICLES ──────────────────────────────────────────────────
+async function loadArticles(ticker){
+  const pane=el('panel-articles');
+  pane.innerHTML='<div class="loading"><div class="spinner"></div>Loading…</div>';
+  try{
+    const d=await get('/articles/'+ticker+'?limit=30');
+    const arts=d.articles||[];
+    if(!arts.length){pane.innerHTML='<div class="empty"><div class="empty-icon">⬡</div><p>No articles for '+ticker+'</p></div>';return;}
+    pane.innerHTML=`<div class="section-meta">${d.count} ARTICLES · <span style="color:var(--bull)">${d.scored_count||0} SCORED</span></div>`
+    +arts.map((a,i)=>{
+      const cls=a.label==='positive'?'b-bull':a.label==='negative'?'b-bear':'b-neu';
+      const sc=(a.score>=0?'+':'')+(a.score||0).toFixed(2);
+      const dt=a.published_at?a.published_at.slice(0,10):'';
+      const isSocial=['telegram','openmindmse','bibbytimes'].includes((a.source||'').toLowerCase());
+      return `<div class="art-card" style="animation-delay:${i*0.03}s">
+        <div class="art-body">
+          <span class="art-src ${isSocial?'src-social':'src-news'}">${a.source||''}</span>
+          <div class="art-title">${a.title||'(No title)'}</div>
+          <div class="art-meta">${dt}${a.language?' · '+a.language:''}</div>
+          ${a.summary?`<div class="art-summary">${a.summary}</div>`:''}
+        </div>
+        <div><div class="score-badge ${cls}">${a.emoji||''} ${sc}</div></div>
+      </div>`;
+    }).join('');
+  }catch(e){pane.innerHTML=`<div class="empty"><div class="empty-icon">⚠</div><p>${e.message}</p></div>`;}
+}
+
+// ── PROVIDER META ─────────────────────────────────────────────
+const PROVIDER_META={
+  'mse.mn':                 {emoji:'🏛️',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'frc':                    {emoji:'⚖️', type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'google_news':            {emoji:'🔍',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'google':                 {emoji:'🔍',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'gnews':                  {emoji:'🔍',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'montsame.mn':            {emoji:'🗞️', type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'news.mn':                {emoji:'📰',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'ikon.mn':                {emoji:'📡',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'zarig.mn':               {emoji:'📋',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'capitalmarkets.mn':      {emoji:'📈',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'mongolbank':             {emoji:'🏦',type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'mongolianminingjournal': {emoji:'⛏️', type:'news',  color:'var(--blue)',  rgb:'37,99,235'},
+  'openmindmse':            {emoji:'📢',type:'social',color:'var(--purple)',rgb:'124,58,237'},
+  'bibbytimes':             {emoji:'💬',type:'social',color:'var(--purple)',rgb:'124,58,237'},
+  'telegram':               {emoji:'✈️', type:'social',color:'var(--purple)',rgb:'124,58,237'},
+};
+function getProviderMeta(src){
+  const key=(src||'').toLowerCase();
+  for(const [k,v] of Object.entries(PROVIDER_META))if(key.includes(k))return {...v,key:k};
+  return {emoji:'📄',type:'news',color:'var(--blue)',rgb:'37,99,235',key};
+}
+
+// ── BY PROVIDER (ticker-scoped) ────────────────────────────────
+async function loadProviders(){
+  const pane=el('panel-providers');
+  if(!selected){
+    pane.innerHTML='<div class="empty"><div class="empty-icon">◉</div><p>Select a company to view by provider</p></div>';
+    return;
+  }
+  if(_providerArtsCache.length){renderProviders(_providerArtsCache);return;}
+  pane.innerHTML='<div class="loading"><div class="spinner"></div>Loading…</div>';
+  try{
+    const d=await get('/articles/'+selected+'?limit=100');
+    renderProviders(d.articles||[]);
+  }catch(e){pane.innerHTML=`<div class="empty"><div class="empty-icon">⚠</div><p>${e.message}</p></div>`;}
+}
+
+function renderProviders(arts){
+  _providerArtsCache=arts;
+  const pane=el('panel-providers');
+  const bySource={};
+  arts.forEach(a=>{
+    const src=(a.source||'unknown').toLowerCase();
+    if(!bySource[src])bySource[src]={articles:[],scores:[]};
+    bySource[src].articles.push(a);
+    if(a.score!=null)bySource[src].scores.push(a.score);
+  });
+  const providers=Object.entries(bySource).map(([src,data])=>{
+    const meta=getProviderMeta(src);
+    const scores=data.scores;
+    const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
+    const pos=data.articles.filter(a=>a.label==='positive').length;
+    const neg=data.articles.filter(a=>a.label==='negative').length;
+    const neu=data.articles.filter(a=>a.label==='neutral').length;
+    return {src,meta,total:data.articles.length,scored:scores.length,avg,pos,neg,neu};
+  }).sort((a,b)=>b.total-a.total);
+
+  const filtered=providerFilter==='all'?providers:providers.filter(p=>p.meta.type===providerFilter);
+
+  pane.innerHTML=`
+    <div style="font-size:9px;color:var(--text3);font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px">
+      Sources for <span style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${selected}</span> · ${arts.length} articles
+    </div>
+    <div class="provider-filter-bar">
+      <span class="pf-label">Filter:</span>
+      <button class="pf-btn ${providerFilter==='all'?'active-all':''}" onclick="setProviderFilter('all')">All Sources</button>
+      <button class="pf-btn ${providerFilter==='news'?'active-news':''}" onclick="setProviderFilter('news')">News</button>
+      <button class="pf-btn ${providerFilter==='social'?'active-social':''}" onclick="setProviderFilter('social')">Social</button>
+    </div>
+    <div class="provider-grid" id="providerGrid"></div>`;
+
+  if(!filtered.length){
+    document.getElementById('providerGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><p>No provider data</p></div>';
+    return;
+  }
+  document.getElementById('providerGrid').innerHTML=filtered.map((p,i)=>{
+    const {meta,src,total,scored,avg,pos,neg,neu}=p;
+    const tot=pos+neg+neu||1;
+    const pw=pos/tot*100,nw=neg/tot*100,ew=neu/tot*100;
+    const avgCol=avg===null?'var(--text3)':avg>0.1?'var(--bull)':avg<-0.1?'var(--bear)':'var(--neu)';
+    const avgStr=avg===null?'N/A':(avg>=0?'+':'')+avg.toFixed(3);
+    return `<div class="provider-card" style="animation:up .2s ease ${i*0.04}s both">
+      <div class="provider-header">
+        <div class="provider-icon icon-${meta.type}" style="color:${meta.color}">${meta.emoji}</div>
+        <div>
+          <div class="provider-name">${src}</div>
+          <div class="provider-type tag-${meta.type}" style="color:${meta.color}">${meta.type.toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="provider-stats">
+        <div class="pstat"><div class="pstat-label">Articles</div><div class="pstat-val">${total}</div></div>
+        <div class="pstat"><div class="pstat-label">Scored</div><div class="pstat-val" style="color:var(--text2)">${scored}</div></div>
+        <div class="pstat"><div class="pstat-label">Bullish</div><div class="pstat-val" style="color:var(--bull)">▲ ${pos}</div></div>
+        <div class="pstat"><div class="pstat-label">Bearish</div><div class="pstat-val" style="color:var(--bear)">▼ ${neg}</div></div>
+      </div>
+      <div class="provider-bar-wrap">
+        <div class="provider-bar-label">
+          <span style="color:var(--bull)">▲ ${pos}</span>
+          <span style="color:var(--neu)">= ${neu}</span>
+          <span style="color:var(--bear)">▼ ${neg}</span>
+        </div>
+        <div class="provider-bar">
+          <div class="provider-bar-fill" style="width:${pw}%;background:var(--bull)"></div>
+          <div class="provider-bar-fill" style="width:${ew}%;background:var(--border2)"></div>
+          <div class="provider-bar-fill" style="width:${nw}%;background:var(--bear)"></div>
+        </div>
+      </div>
+      <div class="provider-avg">
+        <span class="provider-avg-label">Avg Sentiment</span>
+        <span class="provider-avg-val" style="color:${avgCol}">${avgStr}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setProviderFilter(f){providerFilter=f;if(_providerArtsCache.length)renderProviders(_providerArtsCache);else loadProviders();}
+
+// ── SOURCES (global, all companies) ───────────────────────────
+async function loadSources(force=false){
+  const pane=el('panel-sources');
+  if(sourcesData.length&&!force){renderSourcesPage();return;}
+  pane.innerHTML='<div class="loading"><div class="spinner"></div>Loading all articles across companies…</div>';
+  try{
+    let allArts=[];
+    try{
+      const d=await get('/articles?limit=1000');
+      allArts=d.articles||[];
+    }catch(e){
+      for(const co of allCo){
+        try{
+          const d=await get('/articles/'+co.ticker+'?limit=100');
+          (d.articles||[]).forEach(a=>allArts.push({...a,ticker:co.ticker}));
+        }catch(e2){}
+      }
+    }
+    const bySource={};
+    allArts.forEach(a=>{
+      const src=(a.source||'unknown').toLowerCase();
+      if(!bySource[src])bySource[src]={articles:[],scores:[],tickers:new Set()};
+      bySource[src].articles.push(a);
+      if(a.score!=null)bySource[src].scores.push(a.score);
+      if(a.ticker)bySource[src].tickers.add(a.ticker);
+    });
+    sourcesData=Object.entries(bySource).map(([src,data])=>{
+      const meta=getProviderMeta(src);
+      const scores=data.scores;
+      const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
+      const pos=data.articles.filter(a=>a.label==='positive').length;
+      const neg=data.articles.filter(a=>a.label==='negative').length;
+      const neu=data.articles.filter(a=>a.label==='neutral').length;
+      return {src,meta,total:data.articles.length,scored:scores.length,avg,pos,neg,neu,tickers:[...data.tickers],articles:data.articles};
+    });
+    renderSourcesPage();
+  }catch(e){pane.innerHTML=`<div class="empty"><div class="empty-icon">⚠</div><p>${e.message}</p></div>`;}
+}
+
+function renderSourcesPage(){
+  const pane=el('panel-sources');
+  let filtered=sourcesData.filter(p=>{
+    if(sourcesFilter==='news'&&p.meta.type!=='news')return false;
+    if(sourcesFilter==='social'&&p.meta.type!=='social')return false;
+    if(sourcesSearch&&!p.src.includes(sourcesSearch.toLowerCase()))return false;
+    return true;
+  });
+  filtered.sort((a,b)=>{
+    const col=sourcesSort.col;
+    const av=col==='avg'?(a.avg??-99):(a[col]??0);
+    const bv=col==='avg'?(b.avg??-99):(b[col]??0);
+    return (av-bv)*sourcesSort.dir;
+  });
+  pane.innerHTML=`
+    <div class="sources-toolbar">
+      <input class="src-search" placeholder="Search source…" value="${sourcesSearch}" oninput="setSrcSearch(this.value)">
+      <button class="src-chip ${sourcesFilter==='all'?'active':''}" onclick="setSrcFilter('all')">All</button>
+      <button class="src-chip chip-news ${sourcesFilter==='news'?'active':''}" onclick="setSrcFilter('news')">News</button>
+      <button class="src-chip chip-social ${sourcesFilter==='social'?'active':''}" onclick="setSrcFilter('social')">Social</button>
+      <span class="sources-count">${filtered.length} sources · ${filtered.reduce((a,p)=>a+p.total,0).toLocaleString()} articles</span>
+    </div>
+    <div class="sources-table-wrap">
+      <table class="src-table">
+        <thead><tr>
+          ${[{key:'src',label:'Source'},{key:'total',label:'Articles'},{key:'scored',label:'Scored'},{key:'pos',label:'Bull'},{key:'neg',label:'Bear'},{key:'avg',label:'Avg Score'},{key:'bar',label:'Breakdown'},{key:'tickers',label:'Companies'}].map(c=>{
+            if(c.key==='bar'||c.key==='tickers')return `<th>${c.label}</th>`;
+            const sorted=sourcesSort.col===c.key;
+            const icon=sorted?(sourcesSort.dir===-1?'↓':'↑'):'↕';
+            return `<th class="${sorted?'sorted':''}" onclick="setSrcSort('${c.key}')">${c.label} <span class="sort-icon">${icon}</span></th>`;
+          }).join('')}
+        </tr></thead>
+        <tbody>
+          ${filtered.map((p,i)=>{
+            const tot=p.pos+p.neg+p.neu||1;
+            const pw=p.pos/tot*100,nw=p.neg/tot*100,ew=p.neu/tot*100;
+            const avgCol=p.avg===null?'var(--text3)':p.avg>0.1?'var(--bull)':p.avg<-0.1?'var(--bear)':'var(--neu)';
+            const avgStr=p.avg===null?'—':(p.avg>=0?'+':'')+p.avg.toFixed(3);
+            const tStr=p.tickers.slice(0,4).join(', ')+(p.tickers.length>4?` +${p.tickers.length-4}`:'');
+            return `<tr onclick="toggleSourceDrawer('drawer-${i}')" style="animation:up .15s ease ${i*0.025}s both">
+              <td><div class="src-name-cell">
+                <span>${p.meta.emoji}</span><span>${p.src}</span>
+                <span class="src-type-badge tag-${p.meta.type}" style="color:${p.meta.color};border-color:${p.meta.color}40;background:${p.meta.color}10">${p.meta.type}</span>
+              </div></td>
+              <td class="src-count">${p.total.toLocaleString()}</td>
+              <td class="src-count">${p.scored.toLocaleString()}</td>
+              <td style="color:var(--bull);font-family:'IBM Plex Mono',monospace;font-weight:600">▲ ${p.pos}</td>
+              <td style="color:var(--bear);font-family:'IBM Plex Mono',monospace;font-weight:600">▼ ${p.neg}</td>
+              <td class="src-score" style="color:${avgCol}">${avgStr}</td>
+              <td><div class="src-mini-bar">
+                <div class="src-mini-seg" style="width:${pw}%;background:var(--bull)"></div>
+                <div class="src-mini-seg" style="width:${ew}%;background:var(--border2)"></div>
+                <div class="src-mini-seg" style="width:${nw}%;background:var(--bear)"></div>
+              </div></td>
+              <td style="font-size:10px;color:var(--text3);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.tickers.join(', ')}">${tStr||'—'}</td>
+            </tr>
+            <tr class="src-article-drawer" id="drawer-${i}">
+              <td colspan="8" style="padding:0">
+                <div class="src-drawer-inner">
+                  <div class="drawer-header">
+                    <span class="drawer-title">${p.meta.emoji} ${p.src} · Recent Articles</span>
+                    <span class="drawer-close" onclick="event.stopPropagation();toggleSourceDrawer('drawer-${i}')">✕</span>
+                  </div>
+                  ${p.articles.slice(0,8).map(a=>{
+                    const cls=a.label==='positive'?'b-bull':a.label==='negative'?'b-bear':'b-neu';
+                    const sc=a.score!=null?(a.score>=0?'+':'')+a.score.toFixed(2):'—';
+                    const dt=(a.published_at||'').slice(0,10);
+                    return `<div class="art-card" style="margin-bottom:6px">
+                      <div class="art-body">
+                        ${a.ticker?`<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--accent);font-weight:600;margin-bottom:4px;display:inline-block">${a.ticker}</span> `:''}
+                        <div class="art-title">${a.title||'(No title)'}</div>
+                        <div class="art-meta">${dt}${a.language?' · '+a.language:''}</div>
+                        ${a.summary?`<div class="art-summary">${a.summary}</div>`:''}
+                      </div>
+                      <div><div class="score-badge ${cls}">${sc}</div></div>
+                    </div>`;
+                  }).join('')}
+                  ${p.articles.length>8?`<div style="font-size:10px;color:var(--text3);text-align:center;padding:4px 0">+${p.articles.length-8} more articles</div>`:''}
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function toggleSourceDrawer(id){
+  const row=el(id);if(!row)return;
+  const isOpen=row.classList.contains('open');
+  document.querySelectorAll('.src-article-drawer.open').forEach(r=>r.classList.remove('open'));
+  if(!isOpen)row.classList.add('open');
+}
+function setSrcFilter(f){sourcesFilter=f;renderSourcesPage();}
+function setSrcSearch(v){sourcesSearch=v;renderSourcesPage();}
+function setSrcSort(col){
+  if(sourcesSort.col===col)sourcesSort.dir*=-1;
+  else sourcesSort={col,dir:-1};
+  renderSourcesPage();
+}
+
+// ── ALERTS ────────────────────────────────────────────────────
+async function loadAlerts(){
+  const pane=el('panel-alerts');
+  pane.innerHTML='<div class="loading"><div class="spinner"></div>Loading…</div>';
+  try{
+    const d=await get('/alerts?hours=48');
+    const al=d.alerts||[];
+    if(!al.length){pane.innerHTML='<div class="empty"><div class="empty-icon">◬</div><p>No significant signals in last 48h</p></div>';return;}
+    pane.innerHTML=`<div class="section-meta">${al.length} SIGNALS · LAST 48 HOURS</div>`
+    +al.map((a,i)=>{
+      const cls=a.score>0?'b-bull':'b-bear';
+      const sc=(a.score>=0?'+':'')+(a.score||0).toFixed(2);
+      const dt=(a.published_at||a.scored_at||'').slice(0,10);
+      return `<div class="alert-card" style="animation-delay:${i*0.04}s">
+        <span class="al-ticker score-badge ${cls}">${a.ticker||'?'}</span>
+        <div class="al-body">
+          <div class="al-summary">${a.summary||'Significant signal.'}</div>
+          <div class="al-meta">
+            <span style="color:${a.score>0?'var(--bull)':'var(--bear)'};font-family:'IBM Plex Mono',monospace;font-weight:600">${sc}</span>
+            ${a.source?`<span>${a.source}</span>`:''}${dt?`<span>${dt}</span>`:''}
+          </div>
+          ${a.title?`<div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">${a.title.slice(0,100)}${a.title.length>100?'…':''}</div>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){pane.innerHTML='<div class="empty"><div class="empty-icon">⚠</div><p>Error loading alerts.</p></div>';}
+}
+
+// ── TAB SWITCHING ─────────────────────────────────────────────
+function switchTab(tab){
+  activeTab=tab;
+  // Match tabs by their onclick attribute, not position
+  document.querySelectorAll('.tab').forEach(b=>{
+    const match=b.getAttribute('onclick');
+    b.classList.toggle('active', match && match.includes("'"+tab+"'"));
+  });
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  el('panel-'+tab).classList.add('active');
+  if(tab==='overview'&&selected)loadOverview(selected);
+  if(tab==='articles'&&selected)loadArticles(selected);
+  if(tab==='providers')loadProviders();
+  if(tab==='sources')loadSources();
+  if(tab==='alerts')loadAlerts();
+}
+
+// Auto-connect on load
+window.addEventListener('DOMContentLoaded', async ()=>{
+  el('apiStatus').textContent='...';
+  try {
+    await get('/');
+    el('statusDot').className='dot live';
+    el('apiStatus').textContent='LIVE';
+    loadAll();
+  } catch(e) {
+    el('statusDot').className='dot';
+    el('apiStatus').textContent='OFFLINE';
+  }
+});
+
+setInterval(()=>{ if(el('apiStatus').textContent==='LIVE') loadAll(); },300000);
+</script>
+</body>
+</html>

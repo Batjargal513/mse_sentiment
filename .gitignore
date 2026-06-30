@@ -1,0 +1,15 @@
+.env
+*.session
+*.session-journal
+__pycache__/
+*.pyc
+.DS_Store
+
+# Virtual environment
+venv/
+
+# Runtime state
+.scraper_state.json
+.mse_history_done
+.scrapers_history_done
+.telegram_history_done
