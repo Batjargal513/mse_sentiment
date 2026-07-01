@@ -43,14 +43,14 @@ def get_company_intelligence(ticker: str) -> dict:
     history = get_sentiment_history(ticker, days=30)
     latest  = history[0] if history else None
 
-    current_score = latest["avg_score"]   if latest else 0.0
-    current_label = latest["dominant_label"] if latest else "neutral"
+    current_score = float(latest["avg_score"] or 0.0)   if latest else 0.0
+    current_label = (latest["dominant_label"] or "neutral") if latest else "neutral"
 
     # ── 3. Trend — compare last 7 days vs previous 7 days ────────────────────
     trend_direction = "stable"
     if len(history) >= 14:
-        recent_avg = sum(h["avg_score"] for h in history[:7])  / 7
-        older_avg  = sum(h["avg_score"] for h in history[7:14]) / 7
+        recent_avg = sum(float(h["avg_score"] or 0) for h in history[:7])  / 7
+        older_avg  = sum(float(h["avg_score"] or 0) for h in history[7:14]) / 7
         diff = recent_avg - older_avg
         if diff > 0.15:
             trend_direction = "improving"
@@ -80,10 +80,10 @@ def get_company_intelligence(ticker: str) -> dict:
         })
 
     # ── 5. Sentiment breakdown (last 30 days) ─────────────────────────────────
-    total_articles = sum(h["article_count"] for h in history)
-    total_positive = sum(h["positive_count"] for h in history)
-    total_negative = sum(h["negative_count"] for h in history)
-    total_neutral  = sum(h["neutral_count"]  for h in history)
+    total_articles = sum(h.get("article_count")  or 0 for h in history)
+    total_positive = sum(h.get("positive_count") or 0 for h in history)
+    total_negative = sum(h.get("negative_count") or 0 for h in history)
+    total_neutral  = sum(h.get("neutral_count")  or 0 for h in history)
 
     # ── 6. Recent alerts (big score shifts) ───────────────────────────────────
     cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
@@ -143,12 +143,12 @@ def generate_company_summary(ticker: str, name: str, score: float,
 
     # Build context from recent articles
     headlines = "\n".join(
-        f"- {a['title']} ({a['label']}, score: {a['score']:+.2f})"
+        f"- {a['title']} ({a.get('label') or 'neutral'}, score: {float(a.get('score') or 0):+.2f})"
         for a in articles[:5] if a.get("title")
     )
 
     avg_7d = round(
-        sum(h["avg_score"] for h in history[:7]) / len(history[:7]), 2
+        sum(float(h["avg_score"] or 0) for h in history[:7]) / len(history[:7]), 2
     ) if history else 0.0
 
     prompt = f"""You are a financial analyst writing a brief for {name} ({ticker}) stock.

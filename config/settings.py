@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_API_KEY    = os.environ.get("OPENAI_API_KEY", "")      # legacy — no longer used for scoring
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")   # Claude Haiku 4.5 sentiment scoring
 
 # ── Supabase ──────────────────────────────────────────────────────────────────
 SUPABASE_URL    = os.environ.get("SUPABASE_URL", "")
@@ -22,6 +23,10 @@ TELEGRAM_PHONE    = os.environ.get("TELEGRAM_PHONE", "")
 
 # ── Groq ──────────────────────────────────────────────────────────────────────
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+# ── Twitter / X ───────────────────────────────────────────────────────────────
+# auth_token cookie from a logged-in (throwaway) x.com account — see twitter_scraper.py
+X_AUTH_TOKEN = os.environ.get("X_AUTH_TOKEN", "")
 
 # ── Telegram groups to monitor ────────────────────────────────────────────────
 TELEGRAM_GROUPS = [
@@ -54,6 +59,24 @@ GOOGLE_NEWS_QUERIES = [
     "Mongolia bond market",
 ]
 
+# ── Twitter/X search queries (social source) ──────────────────────────────────
+# Finance-targeted Mongolian queries. Tweets matching these are saved as
+# source_type="twitter" (→ 'social' channel); detect_companies maps them to
+# tickers later at scoring time.
+TWITTER_QUERIES = [
+    "хувьцаа", "хувьцааны зах зээл", "ногдол ашиг",
+    "МХБ хувьцаа", "Монголын хөрөнгийн бирж",
+    "хөрөнгийн бирж", "хөрөнгө оруулалт хувьцаа",
+    "хувьцаа арилжаа", "брокер хувьцаа",
+    "Оюу толгой хувьцаа", "Оюутолгой ногдол ашиг",
+    "Тавантолгой хувьцаа", "ETT хувьцаа",
+    "АПУ хувьцаа", "АПУ ХК",
+    "Голомт банк хувьцаа", "Хаан банк хувьцаа",
+    "Худалдаа хөгжлийн банк хувьцаа",
+    "IPO Монгол", "хувьцаа гаргах",
+    "from:BloombergTVM",
+]
+
 # ── MSE company keywords ──────────────────────────────────────────────────────
 # Rules:
 #   1. No standalone common Mongolian words (Ард, Говь, Сүү, Мах etc.)
@@ -74,7 +97,7 @@ MSE_KEYWORDS = [
     "SUU", "Сүү ХК", "Suu JSC",            # FIXED: removed bare "Suu"/"СУУ" (= milk)
     "TDB", "ТДБ", "Худалдаа хөгжлийн банк",
     "GLMT", "Голомт банк", "Golomt Bank",
-    "XAC", "ХАС", "Хаан банк", "Khan Bank",
+    "XAC", "ХАС", "Хас банк", "XacBank",   # XacBank only — NOT Khan Bank (different bank)
     "MIK", "МИК",
     "LEND", "LendMN", "Лендмн",
     "AARD", "Ард кредит", "Ард даатгал",    # FIXED: removed bare "Ард" (= people/citizen)

@@ -8,8 +8,13 @@ __pycache__/
 # Virtual environment
 venv/
 
+# Local data backups (sentiment scores/history dumps before a re-score)
+backups/
+
 # Runtime state
+scweet_state.db
 .scraper_state.json
 .mse_history_done
 .scrapers_history_done
 .telegram_history_done
+**/.DS_Store

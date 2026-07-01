@@ -4,7 +4,7 @@ MSE Sentiment — Run All Fixes in Order
 =======================================
 Run this from your project root:
 
-  PYTHONPATH=. python3 fixes/run_all_fixes.py
+  PYTHONPATH=. python3 migrations/run_all_fixes.py
 
 Order:
   1. Fix AARD false positives     (~1,799 rows deleted)
@@ -44,15 +44,15 @@ def run():
         return
 
     print("\n\n── FIX 1: AARD False Positives ──────────────────────────")
-    from fixes.fix1_aard_false_positives import run as fix1
+    from migrations.fix1_aard_false_positives import run as fix1
     fix1()
 
     print("\n\n── FIX 2: Duplicate Scores ──────────────────────────────")
-    from fixes.fix2_dedup_scores import run as fix2
+    from migrations.fix2_dedup_scores import run as fix2
     fix2()
 
     print("\n\n── FIX 3: Rebuild History ───────────────────────────────")
-    from fixes.fix3_rebuild_history import run as fix3
+    from migrations.fix3_rebuild_history import run as fix3
     fix3()
 
     print("\n\n" + "=" * 60)

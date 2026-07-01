@@ -5,15 +5,15 @@ import json
 import re
 from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.blocking import BlockingScheduler
-from openai import OpenAI
-from config.settings import OPENAI_API_KEY
+import anthropic
+from config.settings import ANTHROPIC_API_KEY
 from db.supabase import (
     get_unprocessed_articles, save_sentiment,
     update_daily_history, get_client
 )
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-MODEL  = "gpt-4o-mini"
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+MODEL  = "claude-haiku-4-5"
 
 # ── Channel mapping ───────────────────────────────────────────────────────────
 SOCIAL_SOURCE_TYPES = {"telegram", "facebook", "twitter", "reddit", "social"}
@@ -31,7 +31,7 @@ COMPANY_MAP = {
     "APU":   ["APU", "АПУ ХК", "АПУ компани"],
     "SEND":  ["SEND", "СЭНДЭ", "Sendly", "Сэндли", "#SEND", "$SEND"],
     "TDB":   ["TDB", "ТДБ", "Худалдаа хөгжлийн банк", "Trade Development Bank"],
-    "XAC":   ["XAC", "ХасБанк", "Хаан банк", "Khan Bank", "XacBank"],
+    "XAC":   ["XAC", "ХасБанк", "Хас банк", "XacBank"],   # XacBank only — NOT Khan Bank (different bank)
     "MIK":   ["MIK", "МИК холдинг", "MIK Holdings"],
     "BDS":   ["BDS", "BDSec", "БДСек"],
     "GLMT":  ["GLMT", "Голомт банк", "Golomt Bank"],
@@ -100,7 +100,7 @@ def smart_truncate(text: str, max_chars: int = 900) -> str:
     return text[:half] + " … " + text[-(half - 3):]
 
 
-# ── IMPROVED GPT-4o-mini prompt ───────────────────────────────────────────────
+# ── Sentiment scoring prompt (Claude Haiku 4.5) ───────────────────────────────
 def score_sentiment(text: str, ticker: str, language: str = "mn", channel: str = "news") -> dict | None:
     lang_note    = "The text is written in Mongolian (Cyrillic script). Read it carefully." if language == "mn" else ""
     channel_note = (
@@ -140,13 +140,16 @@ Rules:
 - If text is NOT actually about {ticker}, set score: 0.0, confidence: 0.2"""
 
     try:
-        response = client.chat.completions.create(
+        response = client.messages.create(
             model=MODEL,
+            max_tokens=256,
+            temperature=0,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
-            temperature=0.1,
         )
-        raw = response.choices[0].message.content.strip()
+        if response.stop_reason == "refusal":
+            print(f"  [!] Claude refused to score {ticker}")
+            return None
+        raw = "".join(b.text for b in response.content if b.type == "text").strip()
         raw = re.sub(r"```json|```", "", raw).strip()
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
@@ -174,7 +177,7 @@ Rules:
         print(f"  [!] JSON parse error for {ticker}: {e}")
         return None
     except Exception as e:
-        print(f"  [!] OpenAI error for {ticker}: {e}")
+        print(f"  [!] Claude error for {ticker}: {e}")
         return None
 
 
@@ -312,7 +315,7 @@ def run_processor():
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("\nMSE Sentiment — AI Processor (patched)")
-    print(f"Model    : {MODEL} (OpenAI)")
+    print(f"Model    : {MODEL} (Anthropic)")
     print("Channels : news | social")
     print("Schedule : Every 10 minutes\n")
 

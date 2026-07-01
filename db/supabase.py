@@ -2,7 +2,10 @@
 MSE Sentiment — Database (Supabase)
 Table setup + all read/write helpers.
 
-Run create_tables() once to initialise your Supabase project.
+First-time setup: copy the SCHEMA_SQL string below into the Supabase SQL
+editor and run it once to create every table, constraint and index.
+
+    python -c "from db.supabase import SCHEMA_SQL; print(SCHEMA_SQL)"
 """
 
 from supabase import create_client, Client
@@ -15,6 +18,9 @@ def get_client() -> Client:
 
 
 # ── SQL schema (run once in Supabase SQL editor) ──────────────────────────────
+# This is the single source of truth for the database. Running it on a fresh
+# Supabase project produces a schema that matches exactly what the code reads and
+# writes. (The historical patches in migrations/ are already folded in here.)
 SCHEMA_SQL = """
 -- 1. MSE companies master list
 CREATE TABLE IF NOT EXISTS companies (
@@ -28,16 +34,17 @@ CREATE TABLE IF NOT EXISTS companies (
 
 -- 2. Raw scraped articles
 CREATE TABLE IF NOT EXISTS articles (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source      TEXT NOT NULL,          -- 'news.mn', 'openmindmse' etc.
-    source_type TEXT NOT NULL,          -- 'rss', 'telegram'
-    title       TEXT,
-    content     TEXT,
-    url         TEXT UNIQUE,
-    language    TEXT DEFAULT 'mn',      -- 'mn' or 'en'
-    raw_text    TEXT,
-    scraped_at  TIMESTAMPTZ DEFAULT NOW(),
-    processed   BOOLEAN DEFAULT FALSE
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source       TEXT NOT NULL,          -- 'news.mn', 'openmindmse' etc.
+    source_type  TEXT NOT NULL,          -- 'scraper', 'telegram', 'official_api' ...
+    title        TEXT,
+    content      TEXT,
+    url          TEXT UNIQUE,
+    language     TEXT DEFAULT 'mn',      -- 'mn' or 'en'
+    raw_text     TEXT,
+    published_at TIMESTAMPTZ,            -- original publish date (when known)
+    scraped_at   TIMESTAMPTZ DEFAULT NOW(),
+    processed    BOOLEAN DEFAULT FALSE
 );
 
 -- 3. Sentiment scores per article per company
@@ -49,14 +56,18 @@ CREATE TABLE IF NOT EXISTS sentiment_scores (
     label         TEXT,               -- 'positive', 'negative', 'neutral'
     summary       TEXT,               -- one sentence AI summary
     confidence    FLOAT,              -- 0.0 to 1.0
-    scored_at     TIMESTAMPTZ DEFAULT NOW()
+    channel       TEXT DEFAULT 'news', -- 'news' or 'social'
+    scored_at     TIMESTAMPTZ DEFAULT NOW(),
+    -- One score per (article, company) — lets the processor skip re-scoring
+    CONSTRAINT uq_article_ticker UNIQUE (article_id, ticker)
 );
 
--- 4. Daily aggregated sentiment per company (time series)
+-- 4. Daily aggregated sentiment per company + channel (time series)
 CREATE TABLE IF NOT EXISTS sentiment_history (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ticker          TEXT REFERENCES companies(ticker),
     date            DATE NOT NULL,
+    channel         TEXT DEFAULT 'news', -- 'news' or 'social'
     avg_score       FLOAT,
     article_count   INTEGER,
     positive_count  INTEGER,
@@ -64,7 +75,7 @@ CREATE TABLE IF NOT EXISTS sentiment_history (
     neutral_count   INTEGER,
     dominant_label  TEXT,
     updated_at      TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(ticker, date, channel)
+    CONSTRAINT uq_history_ticker_date_channel UNIQUE (ticker, date, channel)
 );
 
 -- 5. Scrape log (track what ran and when)
@@ -79,10 +90,14 @@ CREATE TABLE IF NOT EXISTS scrape_log (
 );
 
 -- Indexes for fast lookups
-CREATE INDEX IF NOT EXISTS idx_articles_source     ON articles(source);
-CREATE INDEX IF NOT EXISTS idx_articles_processed  ON articles(processed);
-CREATE INDEX IF NOT EXISTS idx_sentiment_ticker    ON sentiment_scores(ticker);
-CREATE INDEX IF NOT EXISTS idx_history_ticker_date ON sentiment_history(ticker, date);
+CREATE INDEX IF NOT EXISTS idx_articles_source        ON articles(source);
+CREATE INDEX IF NOT EXISTS idx_articles_processed     ON articles(processed);
+CREATE INDEX IF NOT EXISTS idx_articles_published_at  ON articles(published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scores_ticker          ON sentiment_scores(ticker);
+CREATE INDEX IF NOT EXISTS idx_scores_scored_at       ON sentiment_scores(scored_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scores_ticker_scored   ON sentiment_scores(ticker, scored_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scores_channel         ON sentiment_scores(channel);
+CREATE INDEX IF NOT EXISTS idx_history_ticker_date    ON sentiment_history(ticker, date);
 """
 
 

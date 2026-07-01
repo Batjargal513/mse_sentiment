@@ -1,79 +1,18 @@
 """
-MSE Sentiment — Bulk Processor (OpenAI)
-Processes backlog of unprocessed articles using GPT-4o-mini.
+MSE Sentiment — Bulk Processor
+Processes the backlog of unprocessed articles using the shared Claude scorer.
 
 Run once to clear backlog:
     PYTHONPATH=. python3 bulk_processor.py
 """
 
 import time
-import json
-import re
-from datetime import datetime, timezone
-from openai import OpenAI
-from config.settings import OPENAI_API_KEY
 from db.supabase import get_unprocessed_articles, save_sentiment, update_daily_history, get_client
-from sentiment_processor import detect_companies, get_channel, update_todays_history
+from sentiment_processor import (
+    detect_companies, get_channel, update_recent_history, score_sentiment, MODEL
+)
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-MODEL      = "gpt-4o-mini"
 BATCH_SIZE = 50
-
-
-def score_sentiment_openai(text: str, ticker: str, language: str = "mn", channel: str = "news") -> dict | None:
-    lang_note    = "The text is in Mongolian (Cyrillic script). Read carefully." if language == "mn" else ""
-    channel_note = (
-        "Social media post from Mongolian retail investors — capture emotional tone."
-        if channel == "social"
-        else "Formal news or regulatory announcement — focus on financial implications."
-    )
-
-    prompt = f"""You are a financial analyst for the Mongolian Stock Exchange (MSE).
-{lang_note}
-{channel_note}
-
-Analyze sentiment toward ticker {ticker}. Use the FULL score range, do NOT default to 0.7.
-
-Text: {text[:800]}
-
-Examples:
-- Dividend announced → score: 0.8, label: positive
-- Stock delisted → score: -0.6, label: negative
-- Routine filing → score: 0.0, label: neutral
-- Price dropping → score: -0.7, label: negative
-
-Respond ONLY with valid JSON:
-{{"score": 0.0, "label": "neutral", "summary": "max 12 words", "confidence": 0.8}}"""
-
-    try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
-            temperature=0.1,
-        )
-        raw = response.choices[0].message.content.strip()
-        raw = re.sub(r"```json|```", "", raw).strip()
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if match:
-            raw = match.group(0)
-
-        result = json.loads(raw)
-        score  = max(-1.0, min(1.0, float(result.get("score", 0))))
-        label  = result.get("label", "neutral")
-        if label not in ("positive", "negative", "neutral"):
-            label = "neutral"
-
-        return {
-            "score":      round(score, 4),
-            "label":      label,
-            "summary":    str(result.get("summary", ""))[:200],
-            "confidence": round(float(result.get("confidence", 0.7)), 2),
-        }
-
-    except Exception as e:
-        print(f"  [!] OpenAI error for {ticker}: {e}")
-        return None
 
 
 def process_article_bulk(article: dict) -> int:
@@ -100,29 +39,42 @@ def process_article_bulk(article: dict) -> int:
     saved = 0
     for ticker in tickers:
         print(f"  [{channel}] {ticker} ← {source} | {title[:50]}...")
-        result = score_sentiment_openai(full_text, ticker, language, channel)
+        result = score_sentiment(full_text, ticker, language, channel)
 
         if result:
-            save_sentiment(
-                article_id = article_id,
-                ticker     = ticker,
-                score      = result["score"],
-                label      = result["label"],
-                summary    = result["summary"],
-                confidence = result["confidence"],
-                channel    = channel,
-            )
-            print(f"  → {ticker}: {result['label']} ({result['score']:+.2f}) [{channel}] — {result['summary']}")
-            saved += 1
+            # Same quality gate as the live processor: drop very low-confidence
+            # scores (article barely mentions the ticker) so they don't pollute.
+            if result["confidence"] < 0.3:
+                print(f"  [skip] {ticker}: confidence too low ({result['confidence']})")
+            else:
+                save_sentiment(
+                    article_id = article_id,
+                    ticker     = ticker,
+                    score      = result["score"],
+                    label      = result["label"],
+                    summary    = result["summary"],
+                    confidence = result["confidence"],
+                    channel    = channel,
+                )
+                print(f"  → {ticker}: {result['label']} ({result['score']:+.2f}) [{channel}] — {result['summary']}")
+                saved += 1
 
         time.sleep(0.3)   # be gentle with the API
 
+    # Safety: always mark processed so a scoring failure can't make the batch
+    # loop re-scan (and re-charge) this article forever.
+    try:
+        get_client().table("articles") \
+            .update({"processed": True}) \
+            .eq("id", article_id).execute()
+    except Exception:
+        pass
     return saved
 
 
 def run_bulk():
     print("\n" + "="*54)
-    print(f"  Bulk Processor — OpenAI {MODEL}")
+    print(f"  Bulk Processor — {MODEL}")
     print("="*54)
 
     total_articles = 0
@@ -149,7 +101,9 @@ def run_bulk():
         print(f"\n  Batch {batch_num} done — {total_scores} scores so far")
 
     print("\n  Updating daily history...")
-    update_todays_history()
+    # Backlog can span many days — rebuild a wide window so every affected
+    # ticker/date/channel bucket gets recomputed, not just the last 2 days.
+    update_recent_history(days_back=365)
     print("\n  Bulk processing complete! 🎉")
 
 
