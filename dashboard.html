@@ -36,6 +36,20 @@
   --r: 10px;
   --r-sm: 6px;
 }
+[data-theme="dark"] {
+  --bg:#0d1117; --surface:#161b22; --surface2:#1b2230; --surface3:#222b3a;
+  --border:#273040; --border2:#3a4658;
+  --text:#e6edf3; --text2:#9aa7b4; --text3:#6b7887;
+  --bull:#3fb950; --bull-dim:rgba(63,185,80,0.13); --bull-border:rgba(63,185,80,0.32);
+  --bear:#f85149; --bear-dim:rgba(248,81,73,0.13); --bear-border:rgba(248,81,73,0.32);
+  --neu:#8b949e; --neu-dim:rgba(139,148,158,0.13);
+  --gold:#e3a008; --gold-dim:rgba(227,160,8,0.13); --gold-border:rgba(227,160,8,0.32);
+  --blue:#4d9fff; --blue-dim:rgba(77,159,255,0.13);
+  --purple:#a371f7; --purple-dim:rgba(163,113,247,0.13);
+  --accent:#4d9fff; --accent-dim:rgba(77,159,255,0.15);
+}
+html { transition:background .2s; }
+* { transition:background-color .2s, border-color .2s; }
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 body { background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:13px; min-height:100vh; overflow-x:hidden; }
 
@@ -111,6 +125,12 @@ header {
 .dot.live { background:var(--bull); box-shadow:0 0 6px var(--bull); animation:pulse 2s infinite; }
 @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.6} }
 .clock { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text3); }
+.btn-theme {
+  background:var(--surface2); border:1px solid var(--border2); border-radius:var(--r-sm);
+  width:30px; height:30px; cursor:pointer; font-size:13px; line-height:1;
+  display:flex; align-items:center; justify-content:center; transition:all .15s;
+}
+.btn-theme:hover { border-color:var(--accent); }
 
 /* ─── MARKET STRIP ─── */
 .market-strip {
@@ -257,6 +277,21 @@ header {
 .scard-label { font-size:8px; text-transform:uppercase; letter-spacing:2px; color:var(--text3); font-weight:600; margin-bottom:7px; }
 .scard-val { font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; line-height:1; }
 .scard-sub { font-size:10px; color:var(--text3); margin-top:6px; }
+
+/* ─── MARKET HEATMAP (landing) ─── */
+.hm-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
+.hm-title { font-family:'DM Serif Display',serif; font-size:19px; }
+.hm-sub { font-size:9px; color:var(--text3); letter-spacing:1.5px; text-transform:uppercase; font-weight:600; }
+.hm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(116px,1fr)); gap:8px; }
+.hm-tile {
+  background:var(--surface); border:1px solid var(--border); border-left-width:3px;
+  border-radius:var(--r-sm); padding:10px 12px; cursor:pointer;
+  transition:transform .12s, box-shadow .12s, border-color .12s;
+}
+.hm-tile:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.09); border-color:var(--border2); }
+.hm-tk { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; }
+.hm-nm { font-size:9px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:2px 0 7px; }
+.hm-sc { font-family:'IBM Plex Mono',monospace; font-size:16px; font-weight:600; line-height:1; }
 
 /* ─── CHANNEL SPLIT ─── */
 .ch-split { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
@@ -562,7 +597,7 @@ canvas { width:100%!important; display:block; }
 <body>
 
 <header>
-  <div class="logo">
+  <div class="logo" onclick="goHome()" style="cursor:pointer" title="Back to market heatmap">
     <div class="logo-mark">М</div>
     <div>
       <div class="logo-text">MSE Sentiment</div>
@@ -573,6 +608,7 @@ canvas { width:100%!important; display:block; }
     <input class="api-input" id="apiInput" placeholder="http://localhost:8000" value="http://localhost:8000">
     <button class="btn-connect" onclick="connectApi()">Connect</button>
     <div class="status-pill"><div class="dot" id="statusDot"></div><span id="apiStatus">OFFLINE</span></div>
+    <button class="btn-theme" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark">🌙</button>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -634,6 +670,19 @@ let sourcesData=[], sourcesFilter='all', sourcesSearch='', sourcesSort={col:'tot
 function el(id){return document.getElementById(id);}
 function tick(){el('clock').textContent=new Date().toLocaleTimeString('mn-MN',{hour12:false,timeZone:'Asia/Ulaanbaatar'})+' ULN';}
 tick(); setInterval(tick,1000);
+
+// ── THEME ─────────────────────────────────────────────────────
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  const b=el('themeBtn');if(b)b.textContent=t==='dark'?'☀️':'🌙';
+  try{localStorage.setItem('theme',t);}catch(e){}
+  if(selected&&activeTab==='overview')loadOverview(selected); // redraw chart for new theme
+}
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';
+  applyTheme(cur==='dark'?'light':'dark');
+}
+applyTheme((()=>{try{return localStorage.getItem('theme')||'light';}catch(e){return 'light';}})());
 async function get(p){const r=await fetch(API+p);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
 
 async function connectApi(){
@@ -657,9 +706,8 @@ async function loadMarket(){
     el('mktDate').textContent=d.date||'';el('mktMeta').textContent='MSE · '+new Date().toLocaleTimeString('en',{hour12:false});
     el('mktCount').textContent=d.companies_tracked||'—';
     const b=d.breakdown||{};el('mktBreak').textContent=`▲${b.positive||0} ▼${b.negative||0} =${b.neutral||0}`;
-    const top=d.top_movers||{};
-    el('mktBull').textContent=(top.bullish||[]).slice(0,3).join(' · ')||'—';
-    el('mktBear').textContent=(top.bearish||[]).slice(0,3).join(' · ')||'—';
+    el('mktBull').textContent=(d.top_bullish||[]).slice(0,3).map(x=>x.ticker).join(' · ')||'—';
+    el('mktBear').textContent=(d.top_bearish||[]).slice(0,3).map(x=>x.ticker).join(' · ')||'—';
   }catch(e){}
 }
 
@@ -667,7 +715,41 @@ async function loadCompanies(){
   try{
     const d=await get('/companies');
     allCo=d.companies||[];companies=[...allCo];el('coCount').textContent=allCo.length;renderList();
+    if(activeTab==='overview'&&!selected)renderMarketLanding();
   }catch(e){el('tickerList').innerHTML='<div class="empty"><p>Failed to load</p></div>';}
+}
+
+// ── MARKET HEATMAP LANDING (shown when no company is selected) ──
+function goHome(){
+  selected=null;
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  document.querySelectorAll('.ticker-item').forEach(e=>e.classList.remove('active'));
+  switchTab('overview');
+}
+function renderMarketLanding(){
+  const pane=el('panel-overview');
+  if(!allCo.length){pane.innerHTML='<div class="empty"><div class="empty-icon">◈</div><p>Connect to load the market</p></div>';return;}
+  const rows=[...allCo].sort((a,b)=>{
+    const x=a.latest_score,y=b.latest_score;
+    if(x==null)return 1;if(y==null)return -1;return y-x;
+  });
+  const scored=rows.filter(r=>r.latest_score!=null).length;
+  pane.innerHTML=`
+    <div class="hm-head">
+      <div class="hm-title">Market Heatmap</div>
+      <div class="hm-sub">${scored} companies scored · bullish → bearish · click any tile</div>
+    </div>
+    <div class="hm-grid">${rows.map(r=>{
+      const s=r.latest_score,has=s!=null;
+      const col=!has?'var(--text3)':s>0.1?'var(--bull)':s<-0.1?'var(--bear)':'var(--neu)';
+      const tint=!has?'var(--surface)':s>0.1?`rgba(22,163,74,${Math.min(0.16,Math.abs(s)*0.22)})`
+                 :s<-0.1?`rgba(220,38,38,${Math.min(0.16,Math.abs(s)*0.22)})`:'var(--surface)';
+      return `<div class="hm-tile" style="border-left-color:${col};background:${tint}" onclick="selectTicker('${r.ticker}')">
+        <div class="hm-tk">${r.ticker}</div>
+        <div class="hm-nm">${r.name_en||r.name_mn||''}</div>
+        <div class="hm-sc" style="color:${col}">${has?(s>=0?'+':'')+s.toFixed(2):'—'}</div>
+      </div>`;
+    }).join('')}</div>`;
 }
 
 function filterTickers(){
@@ -692,6 +774,7 @@ function renderList(){
 function selectTicker(ticker){
   selected=ticker;
   _providerArtsCache=[];
+  try{history.replaceState(null,'','#'+ticker);}catch(e){}
   document.querySelectorAll('.ticker-item').forEach(e=>e.classList.remove('active'));
   document.querySelectorAll('.ticker-item').forEach(e=>{if(e.querySelector('.ti-ticker')?.textContent===ticker)e.classList.add('active');});
   switchTab('overview');
@@ -797,6 +880,11 @@ function drawChart(hist){
   const W=canvas.offsetWidth||600;
   canvas.width=W*devicePixelRatio;canvas.height=180*devicePixelRatio;canvas.style.height='180px';
   const ctx=canvas.getContext('2d');ctx.scale(devicePixelRatio,devicePixelRatio);
+  const cs=getComputedStyle(document.body);
+  const cGrid=cs.getPropertyValue('--border').trim()||'#e8eaee';
+  const cText=cs.getPropertyValue('--text3').trim()||'#9ca3af';
+  const cZero=cs.getPropertyValue('--border2').trim()||'#d8dbe3';
+  const cDot=cs.getPropertyValue('--surface').trim()||'#ffffff';
   const w=W,h=180,pad={t:10,r:10,b:24,l:44},cw=w-pad.l-pad.r,ch=h-pad.t-pad.b;
   const dates=[...new Set(hist.map(r=>r.date))].sort();
   if(!dates.length)return;
@@ -808,12 +896,12 @@ function drawChart(hist){
   const xst=cw/(dates.length-1||1);
   [-0.5,-0.25,0,0.25,0.5].forEach(v=>{
     const y=pad.t+ch*(1-(v-mn)/rng);
-    ctx.strokeStyle='#e8eaee';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
-    ctx.fillStyle='#9ca3af';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='right';
+    ctx.strokeStyle=cGrid;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
+    ctx.fillStyle=cText;ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='right';
     ctx.fillText((v>=0?'+':'')+v.toFixed(2),pad.l-4,y+3);
   });
   const zy=pad.t+ch*(1-(0-mn)/rng);
-  ctx.strokeStyle='#d8dbe3';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+cw,zy);ctx.stroke();
+  ctx.strokeStyle=cZero;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+cw,zy);ctx.stroke();
   function line(scores,color,rgb){
     const pts=scores.map((s,i)=>s!==null?{x:pad.l+i*xst,y:pad.t+ch*(1-(s-mn)/rng)}:null);
     const valid=pts.filter(Boolean);if(valid.length<2)return;
@@ -828,12 +916,12 @@ function drawChart(hist){
     ctx.stroke();
     [valid[0],valid[valid.length-1]].forEach(p=>{
       ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);
-      ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#ffffff';ctx.lineWidth=1.5;ctx.stroke();
+      ctx.fillStyle=color;ctx.fill();ctx.strokeStyle=cDot;ctx.lineWidth=1.5;ctx.stroke();
     });
   }
   if(showNews)line(nS,'#2563eb','37,99,235');
   if(showSocial)line(sS,'#7c3aed','124,58,237');
-  ctx.fillStyle='#9ca3af';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='center';
+  ctx.fillStyle=cText;ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='center';
   const ls=Math.max(1,Math.floor(dates.length/6));
   dates.forEach((d,i)=>{if(i%ls===0||i===dates.length-1)ctx.fillText(d.slice(5),pad.l+i*xst,h-4);});
 }
@@ -851,7 +939,7 @@ async function loadArticles(ticker){
       const cls=a.label==='positive'?'b-bull':a.label==='negative'?'b-bear':'b-neu';
       const sc=(a.score>=0?'+':'')+(a.score||0).toFixed(2);
       const dt=a.published_at?a.published_at.slice(0,10):'';
-      const isSocial=['telegram','openmindmse','bibbytimes'].includes((a.source||'').toLowerCase());
+      const isSocial=(a.channel||'')==='social';   // trust the API's channel field
       return `<div class="art-card" style="animation-delay:${i*0.03}s">
         <div class="art-body">
           <span class="art-src ${isSocial?'src-social':'src-news'}">${a.source||''}</span>
@@ -882,11 +970,19 @@ const PROVIDER_META={
   'openmindmse':            {emoji:'📢',type:'social',color:'var(--purple)',rgb:'124,58,237'},
   'bibbytimes':             {emoji:'💬',type:'social',color:'var(--purple)',rgb:'124,58,237'},
   'telegram':               {emoji:'✈️', type:'social',color:'var(--purple)',rgb:'124,58,237'},
+  'twitter':                {emoji:'🐦',type:'social',color:'var(--purple)',rgb:'124,58,237'},
 };
-function getProviderMeta(src){
+// `channel` (from the API) wins over the hardcoded map, so new social sources
+// like twitter are always coloured/typed correctly.
+function getProviderMeta(src, channel){
   const key=(src||'').toLowerCase();
-  for(const [k,v] of Object.entries(PROVIDER_META))if(key.includes(k))return {...v,key:k};
-  return {emoji:'📄',type:'news',color:'var(--blue)',rgb:'37,99,235',key};
+  let base={emoji:'📄',type:'news',color:'var(--blue)',rgb:'37,99,235'};
+  for(const [k,v] of Object.entries(PROVIDER_META))if(key.includes(k)){base={...v};break;}
+  const type=channel||base.type||'news';
+  const social=type==='social';
+  return {emoji:base.emoji, type, key,
+          color:social?'var(--purple)':base.color,
+          rgb:social?'124,58,237':base.rgb};
 }
 
 // ── BY PROVIDER (ticker-scoped) ────────────────────────────────
@@ -915,7 +1011,7 @@ function renderProviders(arts){
     if(a.score!=null)bySource[src].scores.push(a.score);
   });
   const providers=Object.entries(bySource).map(([src,data])=>{
-    const meta=getProviderMeta(src);
+    const meta=getProviderMeta(src,(data.articles[0]||{}).channel);
     const scores=data.scores;
     const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
     const pos=data.articles.filter(a=>a.label==='positive').length;
@@ -988,37 +1084,16 @@ function setProviderFilter(f){providerFilter=f;if(_providerArtsCache.length)rend
 async function loadSources(force=false){
   const pane=el('panel-sources');
   if(sourcesData.length&&!force){renderSourcesPage();return;}
-  pane.innerHTML='<div class="loading"><div class="spinner"></div>Loading all articles across companies…</div>';
+  pane.innerHTML='<div class="loading"><div class="spinner"></div>Loading sources…</div>';
   try{
-    let allArts=[];
-    try{
-      const d=await get('/articles?limit=1000');
-      allArts=d.articles||[];
-    }catch(e){
-      for(const co of allCo){
-        try{
-          const d=await get('/articles/'+co.ticker+'?limit=100');
-          (d.articles||[]).forEach(a=>allArts.push({...a,ticker:co.ticker}));
-        }catch(e2){}
-      }
-    }
-    const bySource={};
-    allArts.forEach(a=>{
-      const src=(a.source||'unknown').toLowerCase();
-      if(!bySource[src])bySource[src]={articles:[],scores:[],tickers:new Set()};
-      bySource[src].articles.push(a);
-      if(a.score!=null)bySource[src].scores.push(a.score);
-      if(a.ticker)bySource[src].tickers.add(a.ticker);
-    });
-    sourcesData=Object.entries(bySource).map(([src,data])=>{
-      const meta=getProviderMeta(src);
-      const scores=data.scores;
-      const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
-      const pos=data.articles.filter(a=>a.label==='positive').length;
-      const neg=data.articles.filter(a=>a.label==='negative').length;
-      const neu=data.articles.filter(a=>a.label==='neutral').length;
-      return {src,meta,total:data.articles.length,scored:scores.length,avg,pos,neg,neu,tickers:[...data.tickers],articles:data.articles};
-    });
+    const d=await get('/sources');   // single aggregate endpoint
+    sourcesData=(d.sources||[]).map(s=>({
+      src:s.source,
+      meta:getProviderMeta(s.source,s.channel),
+      total:s.total, scored:s.scored, avg:s.avg,
+      pos:s.pos, neg:s.neg, neu:s.neu,
+      tickers:s.tickers||[], articles:s.articles||[],
+    }));
     renderSourcesPage();
   }catch(e){pane.innerHTML=`<div class="empty"><div class="empty-icon">⚠</div><p>${e.message}</p></div>`;}
 }
@@ -1162,7 +1237,7 @@ function switchTab(tab){
   });
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   el('panel-'+tab).classList.add('active');
-  if(tab==='overview'&&selected)loadOverview(selected);
+  if(tab==='overview')selected?loadOverview(selected):renderMarketLanding();
   if(tab==='articles'&&selected)loadArticles(selected);
   if(tab==='providers')loadProviders();
   if(tab==='sources')loadSources();
@@ -1177,6 +1252,8 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     el('statusDot').className='dot live';
     el('apiStatus').textContent='LIVE';
     loadAll();
+    const h=(location.hash||'').replace('#','').trim().toUpperCase();
+    if(h)setTimeout(()=>selectTicker(h),500);
   } catch(e) {
     el('statusDot').className='dot';
     el('apiStatus').textContent='OFFLINE';

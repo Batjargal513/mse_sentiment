@@ -16,6 +16,7 @@ Run: uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timezone, timedelta
+from collections import defaultdict
 from db.supabase import get_client
 
 app = FastAPI(
@@ -36,6 +37,35 @@ app.add_middleware(
 # ── Helper ────────────────────────────────────────────────────────────────────
 def label_to_emoji(label: str) -> str:
     return {"positive": "📈", "negative": "📉", "neutral": "➡️"}.get(label, "➡️")
+
+
+def _paginate(select_fn):
+    """Fetch every row from a Supabase select, paging past the 1000-row cap."""
+    rows, off, PAGE = [], 0, 1000
+    while True:
+        batch = select_fn(off, off + PAGE - 1).execute().data or []
+        if not batch:
+            break
+        rows += batch
+        off += len(batch)
+    return rows
+
+
+def _recent_ticker_avgs(days: int = 30) -> dict:
+    """Article-count-weighted recent avg_score per ticker (all channels)."""
+    db = get_client()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+    rows = _paginate(lambda a, b: db.table("sentiment_history")
+                     .select("ticker, avg_score, article_count")
+                     .gte("date", cutoff).order("date", desc=True).range(a, b))
+    agg = defaultdict(lambda: [0.0, 0])   # ticker -> [weighted_sum, weight]
+    for r in rows:
+        if r.get("avg_score") is None:
+            continue
+        w = r.get("article_count") or 1
+        agg[r["ticker"]][0] += float(r["avg_score"]) * w
+        agg[r["ticker"]][1] += w
+    return {t: round(s / w, 4) for t, (s, w) in agg.items() if w}
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -59,7 +89,11 @@ def list_companies():
                    .eq("active", True) \
                    .order("ticker") \
                    .execute()
-        return {"companies": result.data, "count": len(result.data)}
+        companies = result.data or []
+        recent = _recent_ticker_avgs(30)          # attach a recent sentiment score
+        for c in companies:
+            c["latest_score"] = recent.get(c["ticker"])
+        return {"companies": companies, "count": len(companies)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -169,43 +203,42 @@ def get_sentiment_history(
 
 
 @app.get("/market/overview")
-def market_overview():
-    """Market-wide sentiment summary for today."""
-    today = datetime.now(timezone.utc).date().isoformat()
+def market_overview(days: int = Query(default=30, ge=1, le=90)):
+    """Market-wide sentiment summary over a recent window (not just today —
+    backfilled data rarely has same-day rows)."""
     try:
-        db = get_client()
-        result = db.table("sentiment_history") \
-                   .select("ticker, avg_score, dominant_label, article_count") \
-                   .eq("date", today) \
-                   .order("avg_score", desc=True) \
-                   .execute()
+        recent = _recent_ticker_avgs(days)
+        today  = datetime.now(timezone.utc).date().isoformat()
 
-        data = result.data or []
+        if not recent:
+            return {"date": today, "message": "No sentiment data yet"}
 
-        if not data:
-            return {"date": today, "message": "No data yet for today"}
-
-        scores   = [r["avg_score"] for r in data]
+        items = sorted(
+            ({"ticker": t, "avg_score": s} for t, s in recent.items()),
+            key=lambda x: x["avg_score"], reverse=True,
+        )
+        scores   = [i["avg_score"] for i in items]
         avg      = round(sum(scores) / len(scores), 4)
-        positive = sum(1 for r in data if r["dominant_label"] == "positive")
-        negative = sum(1 for r in data if r["dominant_label"] == "negative")
-        neutral  = len(data) - positive - negative
+        positive = sum(1 for s in scores if s > 0.1)
+        negative = sum(1 for s in scores if s < -0.1)
+        neutral  = len(scores) - positive - negative
 
         market_label = "positive" if avg > 0.1 else "negative" if avg < -0.1 else "neutral"
 
         return {
             "date":           today,
+            "window_days":    days,
             "market_score":   avg,
             "market_label":   market_label,
             "market_emoji":   label_to_emoji(market_label),
-            "companies_tracked": len(data),
+            "companies_tracked": len(items),
             "breakdown": {
                 "positive": positive,
                 "negative": negative,
                 "neutral":  neutral,
             },
-            "top_bullish":  [r for r in data if r["dominant_label"] == "positive"][:3],
-            "top_bearish":  sorted(data, key=lambda x: x["avg_score"])[:3],
+            "top_bullish":  items[:5],
+            "top_bearish":  sorted(items, key=lambda x: x["avg_score"])[:5],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -271,6 +304,54 @@ def get_articles(
         }
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/sources")
+def list_sources():
+    """Global per-source sentiment breakdown (news + social) across all tickers."""
+    try:
+        db = get_client()
+        rows = _paginate(lambda a, b: db.table("sentiment_scores")
+                         .select("score, label, channel, ticker, "
+                                 "articles(source, title, url, published_at, scraped_at)")
+                         .order("scored_at", desc=True).range(a, b))
+        by = {}
+        for r in rows:
+            art = r.get("articles") or {}
+            src = (art.get("source") or "unknown").lower()   # merge case variants
+            d = by.setdefault(src, {
+                "source": src, "channel": r.get("channel", "news"),
+                "total": 0, "scores": [], "pos": 0, "neg": 0, "neu": 0,
+                "tickers": set(), "articles": [],
+            })
+            d["total"] += 1
+            if r.get("score") is not None:
+                d["scores"].append(r["score"])
+            lab = r.get("label")
+            d["pos" if lab == "positive" else "neg" if lab == "negative" else "neu"] += 1
+            if r.get("ticker"):
+                d["tickers"].add(r["ticker"])
+            if len(d["articles"]) < 8:
+                d["articles"].append({
+                    "ticker": r.get("ticker"), "title": art.get("title"),
+                    "url": art.get("url"), "score": r.get("score"), "label": lab,
+                    "published_at": art.get("published_at") or art.get("scraped_at"),
+                })
+
+        sources = []
+        for src, d in by.items():
+            sc = d["scores"]
+            sources.append({
+                "source": src, "channel": d["channel"],
+                "total": d["total"], "scored": len(sc),
+                "avg": round(sum(sc) / len(sc), 4) if sc else None,
+                "pos": d["pos"], "neg": d["neg"], "neu": d["neu"],
+                "tickers": sorted(d["tickers"]), "articles": d["articles"],
+            })
+        sources.sort(key=lambda x: x["total"], reverse=True)
+        return {"sources": sources, "count": len(sources)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
